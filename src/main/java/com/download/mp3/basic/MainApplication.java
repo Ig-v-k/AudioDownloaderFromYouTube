@@ -6,6 +6,8 @@ import com.github.kiulian.downloader.YoutubeException;
 import com.github.kiulian.downloader.model.VideoDetails;
 import com.github.kiulian.downloader.model.YoutubeVideo;
 import com.github.kiulian.downloader.model.formats.AudioFormat;
+import com.github.kiulian.downloader.model.quality.AudioQuality;
+import com.github.kiulian.downloader.model.quality.VideoQuality;
 
 import java.io.File;
 import java.io.IOException;
@@ -14,10 +16,9 @@ import java.util.List;
 import java.util.Scanner;
 
 import static java.lang.System.*;
-import static java.lang.Thread.currentThread;
 import static java.lang.Thread.sleep;
 
-public class MainApplication {
+public class MainApplication{
     public static final String ANSI_RESET = "\u001B[0m";
     public static final String ANSI_BLACK = "\u001B[30m";
     public static final String ANSI_RED = "\u001B[31m";
@@ -43,79 +44,104 @@ public class MainApplication {
         out.println("\nlaunch...");
         sleep(2000);
 
-//        out.println("q - exit\ns - stop\nd - download\ni - information");
-
-        inputClient();
-
-        informationData();
+        new CustomRun1("thread1").start();
     }
 
-    public static void inputClient() {
-        out.println("insert the link: (s - stop, q - exit)");
-        while(flag) {
-            out.print(ANSI_GREEN + i++ + ". ");
-            inputData(scanner.nextLine());
+    public static class CustomRun2 extends Thread {
+
+        public CustomRun2(String name) {
+            super(name);
+        }
+
+        @Override
+        public void run() {
+            try {
+                informationData();
+            } catch (IOException | YoutubeException | InterruptedException ioException) {
+                ioException.printStackTrace();
+            }
+        }
+
+        public static void informationData() throws IOException, YoutubeException, InterruptedException {
+            out.println(ANSI_WHITE + "\ndownload(d)?\ninformation(i)?");
+            out.print(">> ");switch(scanner.nextLine()) {
+                case "d":
+                    getDownloadAudioFromInternet(list_data);
+                    break;
+                case "i":
+                    getInformation(list_data);
+                    break;
+                default:
+            }
+        }
+
+        public static void getInformation(List<String> listdata) throws IOException, YoutubeException, InterruptedException {
+            for (String data : listdata) {
+                video = downloader.getVideo(data);
+                details = video.details();
+                out.println("\nTitle : " + details.title());
+                out.println("Description : " + details.description());
+                List<AudioFormat> audioFormats = video.findAudioWithQuality(AudioQuality.low);
+                audioFormats.forEach(it -> {
+                    out.println("Audio: " + it.audioQuality() + ":" + it.url());
+                });
+                System.exit(0);
+            }
+        }
+
+        public static void getDownloadAudioFromInternet(List<String> listdata) throws IOException, YoutubeException, InterruptedException {
+            for (String data : listdata) {
+                video = downloader.getVideo(data);
+                details = video.details();
+                List<AudioFormat> audioFormats = video.findAudioWithQuality(AudioQuality.low);
+                video.downloadAsync(audioFormats.get(ii++), outputDirectoryAudioFile, new OnYoutubeDownloadListener() {
+                    @Override
+                    public void onDownloading(int iii) {
+                        out.printf("\b\b\b\b\b%d%%", iii);
+                    }
+
+                    @Override
+                    public void onFinished(File file) {
+                        out.printf("\nFinish audio downloaded: %s", file);
+                        System.exit(0);
+                    }
+
+                    @Override
+                    public void onError(Throwable throwable) {
+                        err.println("\nError: " + throwable.getMessage());
+                    }
+                });
+            }
         }
     }
 
-    public static void inputData(String s) {
-        if("q".equals(s))
-            System.exit(0);
-        if("s".equals(s))
-            flag = false;
-        list_data.add(s);
-    }
-
-    public static void informationData() throws IOException, YoutubeException, InterruptedException {
-        out.println(ANSI_WHITE + "\ndownload(d)?\ninformation(i)?");
-        out.print(">> ");switch(scanner.nextLine()) {
-            case "d":
-                getDownloadAudioFromInternet(list_data);
-                break;
-            case "i":
-                getInformation(list_data);
-                break;
-            default:
+    public static class CustomRun1 extends Thread {
+        public CustomRun1(String name) {
+            super(name);
         }
-    }
 
-    public static void getInformation(List<String> listdata) throws IOException, YoutubeException {
-        for (String data : listdata) {
-            video = downloader.getVideo(data);
-            details = video.details();
-            out.println("\nTitle : " + details.title());
-            out.println("Description : " + details.description());
-
-            List<AudioFormat> audioFormats = video.audioFormats();
-            audioFormats.forEach(it -> {
-                out.println("Audio: " + it.audioQuality() + ":" + it.url());
-            });
+        @Override
+        public void run() {
+            inputClient();
+            new CustomRun2("thread2").start();
+            interrupt();
         }
-    }
 
-    public static void getDownloadAudioFromInternet(List<String> listdata) throws IOException, YoutubeException, InterruptedException {
-        for (String data : listdata) {
-            video = downloader.getVideo(data);
-            details = video.details();
-            List<AudioFormat> audioFormats = video.audioFormats();
-            video.downloadAsync(audioFormats.get(ii++), outputDirectoryAudioFile, new OnYoutubeDownloadListener() {
-                @Override
-                public void onDownloading(int i) {
-                    out.printf("\b\b\b\b\b%d%%", i);
-                }
-
-                @Override
-                public void onFinished(File file) {
-                    out.printf("\nFinish audio downloaded: %s", file);
-                }
-
-                @Override
-                public void onError(Throwable throwable) {
-                    err.println("\nError: " + throwable.getMessage());
-                }
-            });
-
-            currentThread().join();
+        public static void inputClient() {
+            out.println("insert the link: (s - stop, q - exit)");
+            while(flag) {
+                out.print(ANSI_GREEN + i++ + ". ");
+                inputData(scanner.nextLine());
+            }
         }
+
+        public static void inputData(String s) {
+            if("q".equals(s))
+                System.exit(0);
+            if("s".equals(s))
+                flag = false;
+            list_data.add(s);
+        }
+
     }
 }
